@@ -44,7 +44,7 @@ jobs:
         run: |
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::$TAG is not on main"; exit 1; }
           grep -q "^## ${TAG#v} " CHANGELOG.md || { echo "::error::CHANGELOG.md has no '## ${TAG#v} (date)' section"; exit 1; }
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
       - run: python -m unittest discover -s tests -v
