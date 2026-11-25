@@ -27,6 +27,36 @@ Database exports and public API redistribution both need appropriate source-data
 - On failure return an error with no source SQL or credentials. Never substitute fixtures.
 - The importer is not callable by anonymous API clients.
 
+## Errors
+
+The portable handler returns the following statuses. All error responses use
+`Cache-Control: no-store` and `Vary: Origin`; when the request origin is in the
+allowed list, they also include `Access-Control-Allow-Origin` for that origin.
+Bodies below are fictional examples of the exact shape and wording the handler
+returns.
+
+| Status | When it happens | JSON body | Important headers |
+|---|---|---|---|
+| `400` | `q` is missing, duplicated, longer than 100 characters, normalizes to fewer than 2 characters or empty, or contains control characters. Lookup is not attempted. | `{"error":"Provide one school search of 2 to 100 characters."}` | `Vary: Origin`, `Cache-Control: no-store` |
+| `403` | An `Origin` header is present but is not in the configured allow-list. Lookup is not attempted and no `Access-Control-Allow-Origin` is sent. | `{"error":"Origin is not allowed."}` | `Vary: Origin`, `Cache-Control: no-store` |
+| `405` | The method is neither `GET` nor `OPTIONS`. | `{"error":"Method is not allowed."}` | `Allow: GET, OPTIONS`, `Vary: Origin`, `Cache-Control: no-store` |
+| `429` | The per-instance rate limit rejects the request. | `{"error":"Too many searches. Try again shortly."}` | `Retry-After: 60`, `Vary: Origin`, `Cache-Control: no-store` |
+| `503` | The search throws, times out, returns a non-array, or returns a row that fails public-field validation. Details are never included in the body. | `{"error":"School search is unavailable. Please try again."}` | `Vary: Origin`, `Cache-Control: no-store` |
+
+An allowed `OPTIONS` preflight returns `204` with an empty body and these headers:
+`Access-Control-Allow-Methods: GET, OPTIONS`,
+`Access-Control-Allow-Headers: authorization, apikey, content-type, x-client-info`,
+`Access-Control-Max-Age: 600`, plus `Vary: Origin`, `Cache-Control: no-store`
+and `Access-Control-Allow-Origin` for the allowed origin. An unapproved origin
+receives the `403` response above before preflight handling.
+
+A successful `GET` returns `200` with the `{ "items": [...] }` body shown above
+and `Cache-Control: public, max-age=0, s-maxage=60, stale-while-revalidate=120`.
+
+Rate limiting, timeout handling and cache state are per runtime instance and are
+not shared between instances. No availability guarantee is provided; hosting
+operators define their own quotas, availability and data-use terms.
+
 Public dataset access does not grant access to donations, memberships, user contact
 details or production administration. Hosting operators define their API quotas,
 availability and data-use terms separately from the MIT software licence.
